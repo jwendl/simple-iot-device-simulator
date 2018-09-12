@@ -39,10 +39,6 @@ namespace SimpleDeviceSimulator
                 devices.Add(new DeviceItem()
                 {
                     Id = deviceName,
-                    MessageTemplate = @"
-    ""deviceType"": ""Fridge"",
-    ""temperature"": ""{number}"",
-",
                 });
 
                 var twin = new Twin()
@@ -67,10 +63,6 @@ namespace SimpleDeviceSimulator
                 devices.Add(new DeviceItem()
                 {
                     Id = deviceName,
-                    MessageTemplate = @"
-    ""deviceType"": ""LightBulb"",
-    ""state"": ""{boolean}"",
-",
                 });
 
                 var twin = new Twin()
@@ -92,37 +84,69 @@ namespace SimpleDeviceSimulator
                 var deviceClient = DeviceClient.CreateFromConnectionString(deviceConnectionString);
                 await deviceClient.OpenAsync();
 
-                var messageBody = deviceItem.MessageTemplate
-                    .Replace("{number}", new Random().Next(60, 80).ToString())
-                    .Replace("{boolean}", new Random().Next(1, 2) % 2 == 0 ? "on" : "off");
-
-                var eventJson = JsonConvert.SerializeObject(messageBody);
-                var eventJsonBytes = Encoding.UTF8.GetBytes(eventJson);
-                var message = new ClientMessage(eventJsonBytes);
-
-                var messageProperties = message.Properties;
-                messageProperties.Add("messageType", "Telemetry");
-                messageProperties.Add("correlationId", Guid.NewGuid().ToString());
-                messageProperties.Add("parentCorrelationId", Guid.NewGuid().ToString());
-                messageProperties.Add("createdDateTime", DateTime.UtcNow.ToString("u", DateTimeFormatInfo.InvariantInfo));
-                messageProperties.Add("deviceId", deviceItem.Id);
-
-                var properties = new Dictionary<string, string>();
-                if (properties != null)
+                var message = FetchClientMessage(deviceItem);
+                while (true)
                 {
-                    foreach (var property in properties)
-                    {
-                        messageProperties.Add(property.Key, property.Value);
-                    }
+                    await deviceClient.SendEventAsync(message);
+                    await Task.Delay(interval * 1000);
+                    message = FetchClientMessage(deviceItem);
                 }
-
-                Console.WriteLine($"Sending data ({deviceItem.Id}): {eventJson}");
-                await deviceClient.SendEventAsync(message);
-                await Task.Delay(interval * 1000);
             });
 
             await Task.Delay(1000);
             Console.ReadKey();
+        }
+
+        private static ClientMessage FetchClientMessage(DeviceItem deviceItem)
+        {
+            var messageBody = String.Empty;
+            if (deviceItem.Id.Contains("Fridge"))
+            {
+                var range = Enumerable.Range(60, 80);
+                var temperatureDevice = new TemperatureDevice()
+                {
+                    DeviceType = "Fridge",
+                    Temperature = range.OrderBy(n => Guid.NewGuid()).First(),
+                };
+
+                messageBody = JsonConvert.SerializeObject(temperatureDevice);
+            }
+
+            if (deviceItem.Id.Contains("LightBulb"))
+            {
+                var range = Enumerable.Range(1, 100);
+                var booleanDevice = new BooleanDevice()
+                {
+                    DeviceType = "LightBulb",
+                    State = range.OrderBy(n => Guid.NewGuid()).First() % 2 == 0 ? "on" : "off",
+                };
+
+                messageBody = JsonConvert.SerializeObject(booleanDevice);
+            }
+
+            var eventJson = JsonConvert.SerializeObject(messageBody);
+            Console.WriteLine($"Sending data ({deviceItem.Id}): {eventJson}");
+
+            var eventJsonBytes = Encoding.UTF8.GetBytes(eventJson);
+            var message = new ClientMessage(eventJsonBytes);
+
+            var messageProperties = message.Properties;
+            messageProperties.Add("messageType", "Telemetry");
+            messageProperties.Add("correlationId", Guid.NewGuid().ToString());
+            messageProperties.Add("parentCorrelationId", Guid.NewGuid().ToString());
+            messageProperties.Add("createdDateTime", DateTime.UtcNow.ToString("u", DateTimeFormatInfo.InvariantInfo));
+            messageProperties.Add("deviceId", deviceItem.Id);
+
+            var properties = new Dictionary<string, string>();
+            if (properties != null)
+            {
+                foreach (var property in properties)
+                {
+                    messageProperties.Add(property.Key, property.Value);
+                }
+            }
+
+            return message;
         }
 
         public static Task ForEachAsync<T>(this IEnumerable<T> source, int dop, Func<T, Task> body)
@@ -140,8 +164,6 @@ namespace SimpleDeviceSimulator
         public class DeviceItem
         {
             public string Id { get; set; }
-
-            public string MessageTemplate { get; set; }
         }
     }
 }
