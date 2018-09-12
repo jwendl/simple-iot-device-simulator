@@ -102,7 +102,7 @@ namespace SimpleDeviceSimulator
             var messageBody = String.Empty;
             if (deviceItem.Id.Contains("Fridge"))
             {
-                var range = Enumerable.Range(60, 80);
+                var range = Enumerable.Range(32, 20);
                 var temperatureDevice = new TemperatureDevice()
                 {
                     DeviceType = "Fridge",
