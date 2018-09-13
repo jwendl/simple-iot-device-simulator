@@ -88,6 +88,8 @@ namespace SimpleDeviceSimulator
                 while (true)
                 {
                     await deviceClient.SendEventAsync(message);
+                    Console.WriteLine($"Sent data for ({deviceItem.Id})");
+
                     await Task.Delay(interval * 1000);
                     message = FetchClientMessage(deviceItem);
                 }
@@ -124,11 +126,14 @@ namespace SimpleDeviceSimulator
                 messageBody = JsonConvert.SerializeObject(booleanDevice);
             }
 
-            var eventJson = JsonConvert.SerializeObject(messageBody);
-            Console.WriteLine($"Sending data ({deviceItem.Id}): {eventJson}");
+            Console.WriteLine($"Sending data ({deviceItem.Id}): {messageBody}");
 
-            var eventJsonBytes = Encoding.UTF8.GetBytes(eventJson);
-            var message = new ClientMessage(eventJsonBytes);
+            var eventJsonBytes = Encoding.UTF8.GetBytes(messageBody);
+            var message = new ClientMessage(eventJsonBytes)
+            {
+                ContentEncoding = "utf-8",
+                ContentType = "application/json"
+            };
 
             var messageProperties = message.Properties;
             messageProperties.Add("messageType", "Telemetry");
